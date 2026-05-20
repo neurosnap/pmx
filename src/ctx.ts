@@ -86,6 +86,34 @@ async function readStdin(): Promise<string> {
 	return Buffer.concat(chunks).toString("utf-8").trim();
 }
 
+function showHelp(): void {
+	process.stdout.write(
+		"ctx — manage conversation context for pmx sessions\n" +
+			"\n" +
+			"Usage:\n" +
+			"  ctx <command> [options] [session]\n" +
+			"\n" +
+			"Commands:\n" +
+			"  list                          list all sessions\n" +
+			"  path [session]                print path to messages.json\n" +
+			"  add user <text>               add a user message\n" +
+			"  add assistant <json>          add an assistant message\n" +
+			"  add tool-result <id> <name> <output>  add a tool result\n" +
+			"  add-assistant                 add assistant message from stdin (JSON)\n" +
+			"  add-result <id> <name>        add tool result from stdin\n" +
+			"  view [session]                show conversation messages\n" +
+			"  edit [session]                edit/conversation in $EDITOR (delete lines to remove msgs)\n" +
+			"  stats [session]               show token/session statistics\n" +
+			"  last-text [session]           print last assistant text response\n" +
+			"  reset [session]               clear all messages\n" +
+			"  help                          show this help\n" +
+			"\n" +
+			"Environment:\n" +
+			"  ZMX_SESSION     Default session if none specified\n" +
+			"  EDITOR          Editor for edit mode (default: vi)\n",
+	);
+}
+
 // Subcommands where the only arg (if any) is an optional session name
 const NO_ARG_SUBCOMMANDS = new Set([
 	"path",
@@ -98,6 +126,16 @@ const NO_ARG_SUBCOMMANDS = new Set([
 
 async function main() {
 	const [, , cmd, ...args] = process.argv;
+
+	if (cmd === "--help" || cmd === "-h" || cmd === "help") {
+		showHelp();
+		return;
+	}
+
+	if (cmd === "--help" || cmd === "-h" || cmd === "help") {
+		showHelp();
+		return;
+	}
 
 	if (cmd === "list") {
 		const pmxDir = path.join(process.env.HOME ?? "~", ".pmx");
@@ -280,9 +318,7 @@ async function main() {
 		}
 
 		default: {
-			process.stderr.write(
-				"usage: ctx <path|add user <text>|add assistant <json>|add tool-result <id> <name> <output>|add-assistant|add-results|view|stats|edit|reset>\n",
-			);
+			process.stderr.write("ctx: unknown command. Run 'ctx help' for usage.\n");
 			process.exit(1);
 		}
 	}

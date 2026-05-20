@@ -1,6 +1,31 @@
 #!/usr/bin/env bash
 set -eo pipefail
 
+if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ] || [ "${1:-}" = "help" ]; then
+    cat <<HELPEOF
+pmx — AI coding assistant powered by zmx sessions
+
+Usage:
+  pmx [options] [prompt ...]
+  pmx [options] < input
+
+Options:
+  -e, --edit      Open a prompt in $EDITOR before running
+  -h, --help      Show this help
+
+Environment:
+  ZMX_SESSION     Required. The zmx session to use.
+  EDITOR          Editor for -e mode (default: vi)
+  LLM_SYSTEM      Override the default system prompt
+
+Examples:
+  pmx "explain this code"
+  pmx < some_file.txt
+  pmx -e                    # write prompt in editor
+HELPEOF
+    exit 0
+fi
+
 if [ -z "$ZMX_SESSION" ]; then
     echo "pmx: ZMX_SESSION not set" >&2
     exit 1
@@ -60,11 +85,23 @@ while true; do
         id=$(printf '%s' "$call" | jq -r '.id')
         name=$(printf '%s' "$call" | jq -r '.name')
         cmd=$(printf '%s' "$call" | jq -r '.cmd')
-        cmd_preview=$(printf '%s' "$cmd" | tr '\n' ' ' | cut -c1-80)
-        printf "[%s] %s\n" "$name" "$cmd_preview" >&2
         t0=$(date +%s)000
-        zmx run "$ZMX_SESSION.tools" bash -c "$cmd" | ctx add-result "$id" "$name" || true
-        code=${PIPESTATUS[0]}
+
+        if [ "$name" = "write" ]; then
+            file_path=$(printf '%s' "$call" | jq -r '.file_path')
+            file_content=$(printf '%s' "$call" | jq -r '.content')
+            printf "[%s] %s\n" "$name" "$file_path" >&2
+            mkdir -p "$(dirname "$file_path")"
+            printf '%s' "$file_content" > "$file_path"
+            printf "wrote %d bytes to %s\n" "${#file_content}" "$file_path" | ctx add-result "$id" "$name" || true
+            code=$?
+        else
+            cmd_preview=$(printf '%s' "$cmd" | tr '\n' ' ' | cut -c1-80)
+            printf "[%s] %s\n" "$name" "$cmd_preview" >&2
+            printf '%s\n' "$cmd" | zmx run "$ZMX_SESSION.tools" | ctx add-result "$id" "$name" || true
+            code=${PIPESTATUS[0]}
+        fi
+
         t1=$(date +%s)000
         if [ $code -eq 0 ]; then
             printf "%s=> exit %d%s  %dms\n" "$green" "$code" "$reset" "$((t1 - t0))" >&2

@@ -14,7 +14,26 @@ const DEFAULT_TOOLS = [
 			properties: { command: { type: "string" } },
 			required: ["command"],
 		},
-		cmd: "{command}"
+		cmd: "{command}",
+	},
+	{
+		name: "write",
+		description:
+			"Write content to a file. Use this instead of heredocs or echo/printf for creating or overwriting files.",
+		parameters: {
+			type: "object" as const,
+			properties: {
+				file_path: {
+					type: "string",
+					description: "Absolute or relative path to the file",
+				},
+				content: {
+					type: "string",
+					description: "The full content to write to the file",
+				},
+			},
+			required: ["file_path", "content"],
+		},
 	},
 ];
 
@@ -116,14 +135,20 @@ async function main() {
 
 	for (const call of toolCalls) {
 		const tool = tools.find((t) => t.name === call.name);
-		if (!tool?.cmd) {
-			process.stderr.write(`tool: no cmd for '${call.name}'\n`);
+		if (!tool) {
+			process.stderr.write(`tool: unknown tool '${call.name}'\n`);
 			continue;
 		}
-		const resolved = resolveCommand(tool.cmd, call.arguments);
-		process.stdout.write(
-			`${JSON.stringify({ id: call.id, name: call.name, cmd: resolved })}\n`,
-		);
+		if (tool.cmd) {
+			const resolved = resolveCommand(tool.cmd, call.arguments);
+			process.stdout.write(
+				`${JSON.stringify({ id: call.id, name: call.name, cmd: resolved })}\n`,
+			);
+		} else {
+			process.stdout.write(
+				`${JSON.stringify({ id: call.id, name: call.name, ...call.arguments })}\n`,
+			);
+		}
 	}
 }
 
