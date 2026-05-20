@@ -1,6 +1,8 @@
-# pmx: Unix-Composable Agent Tooling
+# pmx: unix utilities to deal with code agents
 
-A set of small, composable tools that together form an LLM agent loop. Each tool does one thing. `zmx` provides session history and tool execution; no monolithic harness.
+No TUI, no REPL, the agent loop is a small bash script.
+
+A set of small, composable tools that together form an LLM agent loop. Each tool does one thing. `zmx` provides session history and tool execution.
 
 ## Tools
 
