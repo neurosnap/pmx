@@ -63,15 +63,8 @@ while true; do
         cmd_preview=$(printf '%s' "$cmd" | tr '\n' ' ' | cut -c1-80)
         printf "[%s] %s\n" "$name" "$cmd_preview" >&2
         t0=$(date +%s)000
-        # Write to temp file to avoid all shell quoting issues with bash -c
-        tmpcmd=$(mktemp /tmp/pmx-cmd.XXXXXX.sh)
-        printf '%s\n' "$cmd" > "$tmpcmd"
-        chmod +x "$tmpcmd"
-        # Cat the file in the tools session so the command is visible in scrollback
-        zmx run "$ZMX_SESSION.tools" cat "$tmpcmd" >&2 || true
-        zmx run "$ZMX_SESSION.tools" bash "$tmpcmd" | ctx add-result "$id" "$name" || true
+        zmx run "$ZMX_SESSION.tools" bash -c "$cmd" | ctx add-result "$id" "$name" || true
         code=${PIPESTATUS[0]}
-        rm -f "$tmpcmd"
         t1=$(date +%s)000
         if [ $code -eq 0 ]; then
             printf "%s=> exit %d%s  %dms\n" "$green" "$code" "$reset" "$((t1 - t0))" >&2
