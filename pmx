@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+set -eo pipefail
+
+if [ -z "$ZMX_SESSION" ]; then
+    echo "pmx: ZMX_SESSION not set" >&2
+    exit 1
+fi
+
+if [ "${1:-}" = "-e" ] || [ "${1:-}" = "--edit" ]; then
+    tmpfile=$(mktemp /tmp/pmx-prompt.XXXXXX)
+    "${EDITOR:-vi}" "$tmpfile"
+    prompt=$(cat "$tmpfile")
+    rm -f "$tmpfile"
+    if [ -z "$prompt" ]; then
+        echo "pmx: empty prompt, aborting" >&2
+        exit 1
+    fi
+fi
+
+if [ -z "${prompt:-}" ]; then
+    if [ -t 0 ]; then
+        if [ $# -gt 0 ]; then
+            prompt="$*"
+        else
+            prompt=$(zmx history "$ZMX_SESSION" | tail -200)
+        fi
+    else
+        saved_tty=$(stty -g </dev/tty 2>/dev/null || true)
+        stdin_text=$(cat)
+        exec 0</dev/tty
+        [ -n "$saved_tty" ] && stty "$saved_tty" 2>/dev/null || true
+        if [ $# -gt 0 ]; then
+            prompt="${stdin_text}"$'\n\n'"$*"
+        else
+            prompt="$stdin_text"
+        fi
+    fi
+fi
+
+ctx add user "$prompt"
+
+cyan=$'\e[36m'
+green=$'\e[32m'
+red=$'\e[31m'
+dim=$'\e[2m'
+reset=$'\e[0m'
+
+printf "%s(tool output: zmx attach %s.tools)%s\n" "$cyan" "$ZMX_SESSION" "$reset" >&2
+turn=0
+
+while true; do
+    turn=$((turn + 1))
+    printf "%s--- turn %d ---%s\n" "$cyan" "$turn" "$reset" >&2
+
+    calls=$(llm "$(ctx path)" "$(tool path)" | ctx add-assistant | tool) && rc=0 || rc=$?
+    [ $rc -eq 2 ] && exit 1   # hard error
+    [ $rc -eq 1 ] && break    # no tool calls — done
+
+    while IFS= read -r call; do
+        id=$(printf '%s' "$call" | jq -r '.id')
+        name=$(printf '%s' "$call" | jq -r '.name')
+        cmd=$(printf '%s' "$call" | jq -r '.cmd')
+        cmd_preview=$(printf '%s' "$cmd" | tr '\n' ' ' | cut -c1-80)
+        printf "[%s] %s\n" "$name" "$cmd_preview" >&2
+        t0=$(date +%s%3N)
+        zmx run "$ZMX_SESSION.tools" bash -c "$cmd" | ctx add-result "$id" "$name" || true
+        code=${PIPESTATUS[0]}
+        t1=$(date +%s%3N)
+        if [ $code -eq 0 ]; then
+            printf "%s=> exit %d%s  %dms\n" "$green" "$code" "$reset" "$((t1 - t0))" >&2
+        else
+            printf "%s=> exit %d%s  %dms\n" "$red" "$code" "$reset" "$((t1 - t0))" >&2
+        fi
+    done <<< "$calls"
+    ctx stats >&2
+done
+
+printf "%s[done]%s\n" "$cyan" "$reset" >&2
+
+if [ ! -t 1 ]; then
+    ctx last-text
+fi

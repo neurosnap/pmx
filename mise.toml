@@ -1,0 +1,15 @@
+[tools]
+node = "latest"
+
+[env]
+
+[tasks.lint]
+run = "npx biome check ."
+[tasks.lint-fix]
+run = "npx biome check --write --unsafe ."
+[tasks.fmt]
+run = "npx biome format --write ."
+[tasks.tc]
+run = "npx tsc --noEmit"
+[tasks.install]
+run = "node --experimental-strip-types scripts/install.mts"

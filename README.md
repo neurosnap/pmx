@@ -1,0 +1,56 @@
+# pmx: Unix-Composable Agent Tooling
+
+A set of small, composable tools that together form an LLM agent loop. Each tool does one thing. `zmx` provides session history and tool execution; no monolithic harness.
+
+## Tools
+
+- **`llm`** - Makes an LLM API call. Streams text to stderr (human-readable), emits full assistant JSON to stdout (machine-readable).
+- **`ctx`** - Manages message history as a JSON file. Add user/assistant/tool-result messages, view, edit, or reset context.
+- **`tool`** - Parses assistant responses for tool calls and resolves them to shell commands.
+- **`pmx`** - The agent loop. Orchestrates `llm`, `ctx`, and `tool` in a loop until no more tool calls remain.
+
+## Core Loop
+
+```bash
+ctx add user "fix the bug"
+
+while true; do
+  response=$(llm "$(ctx path)" "$(tool path)" | ctx add-assistant)
+  calls=$(echo "$response" | tool) || break
+
+  while IFS= read -r call; do
+    id=$(echo "$call" | jq -r '.id')
+    name=$(echo "$call" | jq -r '.name')
+    cmd=$(echo "$call" | jq -r '.cmd')
+    output=$(eval "$cmd")
+    echo "$output" | ctx add-result "$id" "$name"
+  done <<< "$calls"
+done
+```
+
+## Usage
+
+```bash
+pmx "fix the bug"         # run agent with a prompt
+pmx                       # use zmx scrollback as context
+pmx -e                    # edit prompt in $EDITOR
+```
+
+Tool calls execute in a sibling zmx session (`$ZMX_SESSION.tools`) so you can `zmx attach <session>.tools` to watch with full ANSI output.
+
+## Data Flow
+
+```
+pmx "prompt"
+  -> ctx add user
+  -> llm messages.json  (streams to terminal, JSON to stdout)
+  -> ctx add assistant
+  -> extract & execute tool calls via zmx run
+  -> ctx add tool-result
+  -> loop until no tool calls
+```
+
+## Requirements
+
+- `zmx` - session management and tool execution
+- Node.js (for `llm`, `ctx`, `tool` scripts)
