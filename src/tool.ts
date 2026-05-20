@@ -19,7 +19,7 @@ const DEFAULT_TOOLS = [
 	{
 		name: "write",
 		description:
-			"Write content to a file. Use this instead of heredocs or echo/printf for creating or overwriting files.",
+			"Create a new file or fully overwrite an existing file. Do NOT use this to modify existing files — use the edit tool instead.",
 		parameters: {
 			type: "object" as const,
 			properties: {
@@ -38,7 +38,7 @@ const DEFAULT_TOOLS = [
 	{
 		name: "edit",
 		description:
-			"Replace exact text in a file. The old_text must appear exactly once in the file. Prefer this over write for modifying existing files.",
+			"Replace exact text in an existing file. You MUST use this tool (not write) when modifying existing files. Each old_text must appear exactly once and must not overlap with other edits. Keep old_text as small as possible while still being unique. Merge nearby changes into one edit entry.",
 		parameters: {
 			type: "object" as const,
 			properties: {
@@ -46,16 +46,26 @@ const DEFAULT_TOOLS = [
 					type: "string",
 					description: "Absolute or relative path to the file",
 				},
-				old_text: {
-					type: "string",
-					description: "The exact text to find (must be unique in the file)",
-				},
-				new_text: {
-					type: "string",
-					description: "The replacement text",
+				edits: {
+					type: "array",
+					description: "One or more replacements. Each is matched against the original file, not incrementally.",
+					items: {
+						type: "object",
+						properties: {
+							old_text: {
+								type: "string",
+								description: "Exact text to find (must be unique in the file)",
+							},
+							new_text: {
+								type: "string",
+								description: "Replacement text",
+							},
+						},
+						required: ["old_text", "new_text"],
+					},
 				},
 			},
-			required: ["file_path", "old_text", "new_text"],
+			required: ["file_path", "edits"],
 		},
 	},
 ];

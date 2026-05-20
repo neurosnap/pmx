@@ -98,28 +98,40 @@ while true; do
             code=$?
         elif [ "$name" = "edit" ]; then
             file_path=$(printf '%s' "$call" | jq -r '.file_path')
-            old_text=$(printf '%s' "$call" | jq -r '.old_text')
-            new_text=$(printf '%s' "$call" | jq -r '.new_text')
-            old_preview=$(printf '%s' "$old_text" | tr '\n' ' ' | cut -c1-60)
-            printf "[%s] %s: \"%s\"\n" "$name" "$file_path" "$old_preview" >&2
+            num_edits=$(printf '%s' "$call" | jq '.edits | length')
+            printf "[%s] %s (%d edits)\n" "$name" "$file_path" "$num_edits" >&2
             if [ ! -f "$file_path" ]; then
                 printf "error: file not found: %s\n" "$file_path" | ctx add-result "$id" "$name" || true
                 code=1
             else
                 file_content=$(cat "$file_path")
-                count=$(printf '%s' "$file_content" | grep -cF "$old_text" || true)
-                if [ "$count" -eq 0 ]; then
-                    printf "error: old_text not found in %s\n" "$file_path" | ctx add-result "$id" "$name" || true
-                    code=1
-                elif [ "$count" -gt 1 ]; then
-                    printf "error: old_text appears %d times in %s (must be unique)\n" "$count" "$file_path" | ctx add-result "$id" "$name" || true
+                error_msg=""
+                for i in $(seq 0 $((num_edits - 1))); do
+                    old_text=$(printf '%s' "$call" | jq -r ".edits[$i].old_text")
+                    count=$(printf '%s' "$file_content" | grep -cF "$old_text" || true)
+                    if [ "$count" -eq 0 ]; then
+                        old_preview=$(printf '%s' "$old_text" | tr '\n' ' ' | cut -c1-60)
+                        error_msg="error: edit[$i] old_text not found in $file_path: \"$old_preview\""
+                        break
+                    elif [ "$count" -gt 1 ]; then
+                        old_preview=$(printf '%s' "$old_text" | tr '\n' ' ' | cut -c1-60)
+                        error_msg="error: edit[$i] old_text appears $count times in $file_path (must be unique): \"$old_preview\""
+                        break
+                    fi
+                done
+                if [ -n "$error_msg" ]; then
+                    printf '%s\n' "$error_msg" | ctx add-result "$id" "$name" || true
                     code=1
                 else
-                    new_content="${file_content/"$old_text"/"$new_text"}"
                     printf '%s' "$file_content" > "$file_path.orig"
-                    printf '%s' "$new_content" > "$file_path"
+                    for i in $(seq $((num_edits - 1)) -1 0); do
+                        old_text=$(printf '%s' "$call" | jq -r ".edits[$i].old_text")
+                        new_text=$(printf '%s' "$call" | jq -r ".edits[$i].new_text")
+                        file_content="${file_content/"$old_text"/"$new_text"}"
+                    done
+                    printf '%s' "$file_content" > "$file_path"
                     printf '%s\n' "diff $file_path.orig $file_path; rm -f $file_path.orig" | zmx run "$ZMX_SESSION.tools" >/dev/null 2>&1 || true
-                    printf "edited %s\n" "$file_path" | ctx add-result "$id" "$name" || true
+                    printf "edited %s (%d edits applied)\n" "$file_path" "$num_edits" | ctx add-result "$id" "$name" || true
                     code=$?
                 fi
             fi

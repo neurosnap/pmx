@@ -51,8 +51,10 @@ pmx "fix the bug"         # run agent with a prompt
 pmx                       # use zmx scrollback as context
 pmx -e                    # edit prompt in $EDITOR
 
+ctx list                     # list all available sessions
 ctx path                     # print location of messages.json
 ctx view                     # print human readable context
+ctx edit                     # edit conversation in $EDITOR (delete lines to remove messages)
 ctx reset                    # wipe context
 ctx stats                    # meta data
 ctx add user "msg"           # adds user message
@@ -61,7 +63,7 @@ ctx add-result "$id" "$name" # stdin tool call result
 ctx last-text                # prints the final text from assistant
 
 tool path # print location of tools.json
-tool view # print human readable list of tools
+tool list # print human readable list of tools
 tool      # accepts stdin messages from llm api and resolves the tool commands based on template
 
 llm "$(ctx path)" "$(tool path)"  # calls the provider and returns response
