@@ -42,9 +42,26 @@ We also crawl `~/.pi` for provider settings.
 ## Usage
 
 ```bash
+zmx attach dev            # first attach to a session
+
 pmx "fix the bug"         # run agent with a prompt
 pmx                       # use zmx scrollback as context
 pmx -e                    # edit prompt in $EDITOR
+
+ctx path                     # print location of messages.json
+ctx view                     # print human readable context
+ctx reset                    # wipe context
+ctx stats                    # meta data
+ctx add user "msg"           # adds user message
+ctx add-assistant            # stdin messages from llm
+ctx add-result "$id" "$name" # stdin tool call result
+ctx last-text                # prints the final text from assistant
+
+tool path # print location of tools.json
+tool view # print human readable list of tools
+tool      # accepts stdin messages from llm api and resolves the tool commands based on template
+
+llm "$(ctx path)" "$(tool path)"  # calls the provider and returns response
 ```
 
 Tool calls execute in a sibling zmx session (`$ZMX_SESSION.tools`) so you can `zmx attach <session>.tools` to watch with full ANSI output.
