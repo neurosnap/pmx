@@ -35,6 +35,10 @@ mise install
 mise run install
 ```
 
+This will install the scripts into `~/.local/bin` so make sure that's in your `PATH`.
+
+We also crawl `~/.pi` for provider settings.
+
 ## Usage
 
 ```bash
@@ -59,6 +63,7 @@ pmx "prompt"
 
 ## Requirements
 
+- `pi` - purely because we crawl `~/.pi` for provider settings
 - `zmx` - session management and tool execution
 - `jq` - for the bash script
 - Node.js (for `llm`, `ctx`, `tool` scripts)
