@@ -4,6 +4,20 @@ import type { Context, Message, Tool } from "@earendil-works/pi-ai";
 import { getEnvApiKey, stream } from "@earendil-works/pi-ai";
 import { resolveModel } from "./settings.ts";
 
+function loadOAuthCredentials(provider: string): string | undefined {
+	try {
+		const authPath = `${process.env.HOME}/.pi/agent/auth.json`;
+		const auth = JSON.parse(fs.readFileSync(authPath, "utf-8"));
+		const creds = auth[provider];
+		if (creds?.access && creds.expires > Date.now()) {
+			return creds.access;
+		}
+	} catch {
+		// no auth file or parse error — fall through
+	}
+	return undefined;
+}
+
 async function main() {
 	const messagesPath = process.argv[2];
 	const toolsPath = process.argv[3];
@@ -43,9 +57,12 @@ Current working directory: ${cwd}`;
 		process.exit(1);
 	}
 
-	// Extract apiKey from model headers (set by extension) or fall back to env
+	// Resolve API key: extension headers > OAuth credentials > env vars
 	const authHeader = model.headers?.["Authorization"];
-	const apiKey = authHeader?.replace("Bearer ", "") || getEnvApiKey(provider);
+	const apiKey =
+		authHeader?.replace("Bearer ", "") ||
+		loadOAuthCredentials(provider) ||
+		getEnvApiKey(provider);
 
 	const context: Context = {
 		systemPrompt,
