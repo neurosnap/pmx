@@ -94,23 +94,35 @@ function showHelp(): void {
 			"  ctx <command> [options] [session]\n" +
 			"\n" +
 			"Commands:\n" +
-			"  list                          list all sessions\n" +
-			"  path [session]                print path to messages.json\n" +
-			"  add user <text>               add a user message\n" +
-			"  add assistant <json>          add an assistant message\n" +
-			"  add tool-result <id> <name> <output>  add a tool result\n" +
-			"  add-assistant                 add assistant message from stdin (JSON)\n" +
-			"  add-result <id> <name>        add tool result from stdin\n" +
-			"  view [session]                show conversation messages\n" +
-			"  edit [session]                edit/conversation in $EDITOR (delete lines to remove msgs)\n" +
-			"  stats [session]               show token/session statistics\n" +
-			"  last-text [session]           print last assistant text response\n" +
-			"  reset [session]               clear all messages\n" +
-			"  help                          show this help\n" +
+			"  list                              List all available pmx sessions\n" +
+			"  path [session]                    Print path to messages.json for a session\n" +
+			"  add user <text>                   Append a user message to the conversation\n" +
+			"  add assistant <json>              Append an assistant message (JSON) to the conversation\n" +
+			"  add tool-result <id> <name> <text>Append a tool result message\n" +
+			"  add-assistant                     Read assistant message JSON from stdin and append it\n" +
+			"  add-result <id> <name>            Read tool result text from stdin and append it\n" +
+			"  view [session]                    Display all conversation messages in tabular format\n" +
+			"  edit [session]                    Open conversation in $EDITOR; delete lines to remove messages\n" +
+			"  stats [session]                   Show model name, token usage, and message count\n" +
+			"  last-text [session]               Print the last assistant text response (no tool calls)\n" +
+			"  reset [session]                   Clear all messages in the session\n" +
+			"  help                              Show this help message\n" +
+			"\n" +
+			"Options:\n" +
+			"  [session]   Optional session name override (default: $ZMX_SESSION)\n" +
 			"\n" +
 			"Environment:\n" +
-			"  ZMX_SESSION     Default session if none specified\n" +
-			"  EDITOR          Editor for edit mode (default: vi)\n",
+			"  ZMX_SESSION     Required. The zmx session to use.\n" +
+			"  EDITOR          Editor for edit mode (default: vi)\n" +
+			"\n" +
+			"Examples:\n" +
+			"  ctx list                            # list all sessions\n" +
+			"  ctx view my-session                 # show messages for 'my-session'\n" +
+			"  ctx add user 'fix the bug in main.ts'\n" +
+			"  ctx stats                           # check token usage\n" +
+			"  ctx edit                            # open conversation in editor\n" +
+			"  ctx reset my-session                # clear all messages\n" +
+			"  ctx last-text                       # print last assistant reply\n",
 	);
 }
 
@@ -126,11 +138,6 @@ const NO_ARG_SUBCOMMANDS = new Set([
 
 async function main() {
 	const [, , cmd, ...args] = process.argv;
-
-	if (cmd === "--help" || cmd === "-h" || cmd === "help") {
-		showHelp();
-		return;
-	}
 
 	if (cmd === "--help" || cmd === "-h" || cmd === "help") {
 		showHelp();

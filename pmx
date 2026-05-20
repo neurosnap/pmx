@@ -95,6 +95,30 @@ while true; do
             printf '%s' "$file_content" > "$file_path"
             printf "wrote %d bytes to %s\n" "${#file_content}" "$file_path" | ctx add-result "$id" "$name" || true
             code=$?
+        elif [ "$name" = "edit" ]; then
+            file_path=$(printf '%s' "$call" | jq -r '.file_path')
+            old_text=$(printf '%s' "$call" | jq -r '.old_text')
+            new_text=$(printf '%s' "$call" | jq -r '.new_text')
+            printf "[%s] %s\n" "$name" "$file_path" >&2
+            if [ ! -f "$file_path" ]; then
+                printf "error: file not found: %s\n" "$file_path" | ctx add-result "$id" "$name" || true
+                code=1
+            else
+                file_content=$(cat "$file_path")
+                count=$(printf '%s' "$file_content" | grep -cF "$old_text" || true)
+                if [ "$count" -eq 0 ]; then
+                    printf "error: old_text not found in %s\n" "$file_path" | ctx add-result "$id" "$name" || true
+                    code=1
+                elif [ "$count" -gt 1 ]; then
+                    printf "error: old_text appears %d times in %s (must be unique)\n" "$count" "$file_path" | ctx add-result "$id" "$name" || true
+                    code=1
+                else
+                    new_content="${file_content/"$old_text"/"$new_text"}"
+                    printf '%s' "$new_content" > "$file_path"
+                    printf "edited %s\n" "$file_path" | ctx add-result "$id" "$name" || true
+                    code=$?
+                fi
+            fi
         else
             cmd_preview=$(printf '%s' "$cmd" | tr '\n' ' ' | cut -c1-80)
             printf "[%s] %s\n" "$name" "$cmd_preview" >&2

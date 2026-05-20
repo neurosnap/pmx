@@ -35,6 +35,29 @@ const DEFAULT_TOOLS = [
 			required: ["file_path", "content"],
 		},
 	},
+	{
+		name: "edit",
+		description:
+			"Replace exact text in a file. The old_text must appear exactly once in the file. Prefer this over write for modifying existing files.",
+		parameters: {
+			type: "object" as const,
+			properties: {
+				file_path: {
+					type: "string",
+					description: "Absolute or relative path to the file",
+				},
+				old_text: {
+					type: "string",
+					description: "The exact text to find (must be unique in the file)",
+				},
+				new_text: {
+					type: "string",
+					description: "The replacement text",
+				},
+			},
+			required: ["file_path", "old_text", "new_text"],
+		},
+	},
 ];
 
 function getToolsPath(): string {
@@ -73,8 +96,44 @@ async function readStdin(): Promise<string> {
 	return Buffer.concat(chunks).toString("utf-8").trim();
 }
 
+function showHelp(): void {
+	const _p = getToolsPath();
+	process.stdout.write(
+		"tool — manage tool definitions and resolve LLM tool calls\n" +
+			"\n" +
+			"Usage:\n" +
+			"  tool                          Resolve tool calls from stdin (pipe mode)\n" +
+			"  tool path                     Print path to tools.json\n" +
+			"  tool list                     List all registered tools\n" +
+			"  tool help                     Show this help message\n" +
+			"\n" +
+			"Commands:\n" +
+			"  path                          Print the path to the tools.json file.\n" +
+			"                                Creates the file with defaults if it doesn't exist.\n" +
+			"  list                          Print each tool as: name\tdescription\tcmd\n" +
+			"  help                          Show this help message\n" +
+			"  (no command)                  Pipe mode: read an assistant message JSON from stdin,\n" +
+			"                                resolve tool calls against registered tools, and print\n" +
+			"                                one JSON line per call to stdout.\n" +
+			"\n" +
+			"Editing tools:\n" +
+			"  vi $(tool path)               Open tools.json in your editor to add/modify tools\n" +
+			"\n" +
+			"Examples:\n" +
+			"  tool path                     # print ~/.pmx/tools.json\n" +
+			"  tool list                     # show registered tools\n" +
+			"  echo '{...}' | tool           # resolve tool calls from assistant message JSON\n" +
+			"  llm $(ctx path) $(tool path) | ctx add-assistant | tool\n",
+	);
+}
+
 async function main() {
 	const [, , cmd] = process.argv;
+
+	if (cmd === "--help" || cmd === "-h" || cmd === "help") {
+		showHelp();
+		return;
+	}
 
 	if (cmd === "path") {
 		const p = getToolsPath();
@@ -82,25 +141,6 @@ async function main() {
 			saveTools(DEFAULT_TOOLS);
 		}
 		process.stdout.write(`${p}\n`);
-		return;
-	}
-
-	if (cmd === "help") {
-		const p = getToolsPath();
-		process.stderr.write(
-			"tool — manage tool definitions\n" +
-				"\n" +
-				"Usage:\n" +
-				"  tool                          resolve tool calls from stdin (pipe mode)\n" +
-				"  tool path                     print path to tools.json (" +
-				p +
-				")\n" +
-				"  tool list                     list registered tools (name, description, cmd)\n" +
-				"  tool help                     show this help\n" +
-				"\n" +
-				"Edit tools directly:\n" +
-				"  vi $(tool path)\n",
-		);
 		return;
 	}
 

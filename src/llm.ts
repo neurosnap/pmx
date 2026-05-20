@@ -18,11 +18,47 @@ function loadOAuthCredentials(provider: string): string | undefined {
 	return undefined;
 }
 
+function showHelp(): void {
+	process.stdout.write(
+		"llm — send a conversation to an LLM and stream the response\n" +
+			"\n" +
+			"Usage:\n" +
+			"  llm <messages.json> <tools.json>\n" +
+			"  llm help\n" +
+			"\n" +
+			"Arguments:\n" +
+			"  messages.json   Path to a JSON file containing conversation messages\n" +
+			"  tools.json      Path to a JSON file containing tool definitions\n" +
+			"\n" +
+			"Output:\n" +
+			"  stderr  Streaming text output (assistant reply, thinking tags)\n" +
+			"  stdout  Full assistant message JSON (for piping to ctx add-assistant)\n" +
+			"\n" +
+			"Environment:\n" +
+			"  LLM_PROVIDER    LLM provider (default: from ~/.pi/agent/settings.json or 'anthropic')\n" +
+			"  LLM_MODEL       Model name (default: from settings or 'claude-sonnet-4-5')\n" +
+			"  LLM_SYSTEM      Override the default system prompt\n" +
+			"\n" +
+			"Examples:\n" +
+			"  llm ~/.pmx/my-session/messages.json ~/.pmx/tools.json\n" +
+			"  llm $(ctx path) $(tool path)\n" +
+			"  LLM_SYSTEM='You are a helpful editor' llm $(ctx path) $(tool path)\n",
+	);
+}
+
 async function main() {
-	const messagesPath = process.argv[2];
-	const toolsPath = process.argv[3];
+	const [, , arg1, arg2] = process.argv;
+
+	if (arg1 === "--help" || arg1 === "-h" || arg1 === "help") {
+		showHelp();
+		return;
+	}
+
+	const messagesPath = arg1;
+	const toolsPath = arg2;
 	if (!messagesPath || !toolsPath) {
 		process.stderr.write("usage: llm <messages.json> <tools.json>\n");
+		process.stderr.write("Run 'llm help' for more information.\n");
 		process.exit(1);
 	}
 
