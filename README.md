@@ -28,6 +28,13 @@ while true; do
 done
 ```
 
+## Install
+
+```bash
+mise install
+mise run install
+```
+
 ## Usage
 
 ```bash
@@ -53,4 +60,5 @@ pmx "prompt"
 ## Requirements
 
 - `zmx` - session management and tool execution
+- `jq` - for the bash script
 - Node.js (for `llm`, `ctx`, `tool` scripts)
