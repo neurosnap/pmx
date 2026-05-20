@@ -58,7 +58,7 @@ Current working directory: ${cwd}`;
 	}
 
 	// Resolve API key: extension headers > OAuth credentials > env vars
-	const authHeader = model.headers?.["Authorization"];
+	const authHeader = model.headers?.Authorization;
 	const apiKey =
 		authHeader?.replace("Bearer ", "") ||
 		loadOAuthCredentials(provider) ||
@@ -80,14 +80,14 @@ Current working directory: ${cwd}`;
 			process.stderr.write(dim);
 			inThinking = true;
 		} else if (event.type === "thinking_end") {
-			if (inThinking) process.stderr.write(reset + "\n");
+			if (inThinking) process.stderr.write(`${reset}\n`);
 			inThinking = false;
 		} else if (event.type === "thinking_delta") {
 			// re-apply dim after each chunk so backticks don't break the style
 			process.stderr.write(event.delta + dim);
 		} else if (event.type === "text_delta") {
 			if (inThinking) {
-				process.stderr.write(reset + "\n");
+				process.stderr.write(`${reset}\n`);
 				inThinking = false;
 			}
 			// qwen-chat-template emits a literal </think> token as a text delta
@@ -100,7 +100,7 @@ Current working directory: ${cwd}`;
 	const message = await st.result();
 
 	// stdout: full assistant message JSON for ctx and the fish loop
-	process.stdout.write(JSON.stringify(message) + "\n");
+	process.stdout.write(`${JSON.stringify(message)}\n`);
 }
 
 main().catch((err) => {

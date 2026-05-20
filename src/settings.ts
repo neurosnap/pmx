@@ -1,5 +1,10 @@
 import fs from "node:fs";
-import { getModel, type KnownProvider, type Model, type Api } from "@earendil-works/pi-ai";
+import {
+	type Api,
+	getModel,
+	type KnownProvider,
+	type Model,
+} from "@earendil-works/pi-ai";
 
 interface PiSettings {
 	defaultProvider?: string;
@@ -17,14 +22,20 @@ function loadPiSettings(): PiSettings {
 }
 
 // Parse provider/model out of a pi extension file via regex — good enough for prototype
-function loadExtensionModel(provider: string, modelId: string): Model<Api> | undefined {
+function loadExtensionModel(
+	provider: string,
+	modelId: string,
+): Model<Api> | undefined {
 	const piSettings = loadPiSettings();
 	for (const pkg of piSettings.packages ?? []) {
 		if (!pkg.startsWith("file:")) continue;
-		const extPath = pkg.replace("file:~", process.env.HOME ?? "~").replace("file:", "");
+		const extPath = pkg
+			.replace("file:~", process.env.HOME ?? "~")
+			.replace("file:", "");
 		try {
 			const src = fs.readFileSync(extPath, "utf-8");
-			if (!src.includes(`"${provider}"`) && !src.includes(`'${provider}'`)) continue;
+			if (!src.includes(`"${provider}"`) && !src.includes(`'${provider}'`))
+				continue;
 
 			const baseUrl = src.match(/baseUrl\s*:\s*["']([^"']+)["']/)?.[1];
 			const api = src.match(/api\s*:\s*["']([^"']+)["']/)?.[1];
@@ -45,23 +56,25 @@ function loadExtensionModel(provider: string, modelId: string): Model<Api> | und
 				reasoning,
 				input: ["text"],
 				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-				contextWindow: parseInt(contextWindow ?? "0"),
-				maxTokens: parseInt(maxTokens ?? "4096"),
+				contextWindow: parseInt(contextWindow ?? "0", 10),
+				maxTokens: parseInt(maxTokens ?? "4096", 10),
 				headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : undefined,
 			};
-		} catch {
-			continue;
-		}
+		} catch {}
 	}
 	return undefined;
 }
 
 export function resolveModel() {
 	const piSettings = loadPiSettings();
-	const provider = process.env.LLM_PROVIDER ?? piSettings.defaultProvider ?? "anthropic";
-	const modelName = process.env.LLM_MODEL ?? piSettings.defaultModel ?? "claude-sonnet-4-5";
+	const provider =
+		process.env.LLM_PROVIDER ?? piSettings.defaultProvider ?? "anthropic";
+	const modelName =
+		process.env.LLM_MODEL ?? piSettings.defaultModel ?? "claude-sonnet-4-5";
 	// getModel returns undefined at runtime for unknown provider/model combos despite its types
-	let model = getModel(provider as KnownProvider, modelName as never) as Model<Api> | undefined;
+	let model = getModel(provider as KnownProvider, modelName as never) as
+		| Model<Api>
+		| undefined;
 	if (!model) model = loadExtensionModel(provider, modelName);
 	return { provider, modelName, model };
 }

@@ -33,7 +33,7 @@ function loadTools(): typeof DEFAULT_TOOLS {
 function saveTools(tools: typeof DEFAULT_TOOLS): void {
 	const p = getToolsPath();
 	fs.mkdirSync(path.dirname(p), { recursive: true });
-	fs.writeFileSync(p, JSON.stringify(tools, null, 2) + "\n");
+	fs.writeFileSync(p, `${JSON.stringify(tools, null, 2)}\n`);
 }
 
 function resolveCommand(
@@ -62,7 +62,7 @@ async function main() {
 		if (!fs.existsSync(p)) {
 			saveTools(DEFAULT_TOOLS);
 		}
-		process.stdout.write(p + "\n");
+		process.stdout.write(`${p}\n`);
 		return;
 	}
 
@@ -70,15 +70,17 @@ async function main() {
 		const p = getToolsPath();
 		process.stderr.write(
 			"tool — manage tool definitions\n" +
-			"\n" +
-			"Usage:\n" +
-			"  tool                          resolve tool calls from stdin (pipe mode)\n" +
-			"  tool path                     print path to tools.json (" + p + ")\n" +
-			"  tool list                     list registered tools (name, description, cmd)\n" +
-			"  tool help                     show this help\n" +
-			"\n" +
-			"Edit tools directly:\n" +
-			"  vi $(tool path)\n",
+				"\n" +
+				"Usage:\n" +
+				"  tool                          resolve tool calls from stdin (pipe mode)\n" +
+				"  tool path                     print path to tools.json (" +
+				p +
+				")\n" +
+				"  tool list                     list registered tools (name, description, cmd)\n" +
+				"  tool help                     show this help\n" +
+				"\n" +
+				"Edit tools directly:\n" +
+				"  vi $(tool path)\n",
 		);
 		return;
 	}
@@ -89,7 +91,7 @@ async function main() {
 			const name = t.name;
 			const desc = t.description;
 			const command = t.cmd ?? "(no cmd)";
-			process.stdout.write(name + "\t" + desc + "\t" + command + "\n");
+			process.stdout.write(`${name}\t${desc}\t${command}\n`);
 		}
 		return;
 	}
@@ -115,17 +117,17 @@ async function main() {
 	for (const call of toolCalls) {
 		const tool = tools.find((t) => t.name === call.name);
 		if (!tool?.cmd) {
-			process.stderr.write("tool: no cmd for '" + call.name + "'\n");
+			process.stderr.write(`tool: no cmd for '${call.name}'\n`);
 			continue;
 		}
 		const resolved = resolveCommand(tool.cmd, call.arguments);
 		process.stdout.write(
-			JSON.stringify({ id: call.id, name: call.name, cmd: resolved }) + "\n",
+			`${JSON.stringify({ id: call.id, name: call.name, cmd: resolved })}\n`,
 		);
 	}
 }
 
 main().catch((err) => {
-	process.stderr.write("[tool error] " + err + "\n");
+	process.stderr.write(`[tool error] ${err}\n`);
 	process.exit(2);
 });
