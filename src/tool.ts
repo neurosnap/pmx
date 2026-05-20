@@ -14,7 +14,7 @@ const DEFAULT_TOOLS = [
 			properties: { command: { type: "string" } },
 			required: ["command"],
 		},
-		cmd: "bash -c {command}"
+		cmd: "{command}"
 	},
 ];
 
