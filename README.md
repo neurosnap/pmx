@@ -32,6 +32,7 @@ done
 
 ```bash
 mise install
+npm install
 mise run install
 ```
 
