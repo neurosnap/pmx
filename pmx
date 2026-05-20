@@ -90,16 +90,18 @@ while true; do
         if [ "$name" = "write" ]; then
             file_path=$(printf '%s' "$call" | jq -r '.file_path')
             file_content=$(printf '%s' "$call" | jq -r '.content')
-            printf "[%s] %s\n" "$name" "$file_path" >&2
+            printf "[%s] %s (%d bytes)\n" "$name" "$file_path" "${#file_content}" >&2
             mkdir -p "$(dirname "$file_path")"
             printf '%s' "$file_content" > "$file_path"
+            printf '%s\n' "cat $file_path" | zmx run "$ZMX_SESSION.tools" >/dev/null 2>&1 || true
             printf "wrote %d bytes to %s\n" "${#file_content}" "$file_path" | ctx add-result "$id" "$name" || true
             code=$?
         elif [ "$name" = "edit" ]; then
             file_path=$(printf '%s' "$call" | jq -r '.file_path')
             old_text=$(printf '%s' "$call" | jq -r '.old_text')
             new_text=$(printf '%s' "$call" | jq -r '.new_text')
-            printf "[%s] %s\n" "$name" "$file_path" >&2
+            old_preview=$(printf '%s' "$old_text" | tr '\n' ' ' | cut -c1-60)
+            printf "[%s] %s: \"%s\"\n" "$name" "$file_path" "$old_preview" >&2
             if [ ! -f "$file_path" ]; then
                 printf "error: file not found: %s\n" "$file_path" | ctx add-result "$id" "$name" || true
                 code=1
@@ -114,7 +116,9 @@ while true; do
                     code=1
                 else
                     new_content="${file_content/"$old_text"/"$new_text"}"
+                    printf '%s' "$file_content" > "$file_path.orig"
                     printf '%s' "$new_content" > "$file_path"
+                    printf '%s\n' "diff $file_path.orig $file_path; rm -f $file_path.orig" | zmx run "$ZMX_SESSION.tools" >/dev/null 2>&1 || true
                     printf "edited %s\n" "$file_path" | ctx add-result "$id" "$name" || true
                     code=$?
                 fi
