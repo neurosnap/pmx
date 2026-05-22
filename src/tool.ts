@@ -1,11 +1,9 @@
 #!/usr/bin/env -S node --experimental-strip-types
+import { execSync } from "node:child_process";
 import fs from "node:fs";
-import path from "node:path";
-import type { AssistantMessage, ToolCall } from "@earendil-works/pi-ai";
+import type { AssistantMessage, Tool, ToolCall } from "@earendil-works/pi-ai";
 
-const TOOLS_PATH = path.join(process.env.HOME ?? "~", ".pmx", "tools.json");
-
-const DEFAULT_TOOLS = [
+const TOOLS: Tool[] = [
 	{
 		name: "bash",
 		description: "Run a shell command.",
@@ -14,7 +12,6 @@ const DEFAULT_TOOLS = [
 			properties: { command: { type: "string" } },
 			required: ["command"],
 		},
-		cmd: "{command}",
 	},
 	{
 		name: "write",
@@ -48,7 +45,8 @@ const DEFAULT_TOOLS = [
 				},
 				edits: {
 					type: "array",
-					description: "One or more replacements. Each is matched against the original file, not incrementally.",
+					description:
+						"One or more replacements. Each is matched against the original file, not incrementally.",
 					items: {
 						type: "object",
 						properties: {
@@ -70,36 +68,6 @@ const DEFAULT_TOOLS = [
 	},
 ];
 
-function getToolsPath(): string {
-	return TOOLS_PATH;
-}
-
-function loadTools(): typeof DEFAULT_TOOLS {
-	try {
-		return JSON.parse(fs.readFileSync(getToolsPath(), "utf-8"));
-	} catch {
-		return DEFAULT_TOOLS;
-	}
-}
-
-function saveTools(tools: typeof DEFAULT_TOOLS): void {
-	const p = getToolsPath();
-	fs.mkdirSync(path.dirname(p), { recursive: true });
-	fs.writeFileSync(p, `${JSON.stringify(tools, null, 2)}\n`);
-}
-
-function resolveCommand(
-	template: string,
-	args: Record<string, unknown>,
-): string {
-	return template.replace(/\{(\w+)\}/g, (_match, key) => {
-		const val = args[key];
-		if (val === undefined) return `{${key}}`;
-		if (typeof val === "string") return val;
-		return JSON.stringify(val);
-	});
-}
-
 async function readStdin(): Promise<string> {
 	const chunks: Buffer[] = [];
 	for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
@@ -107,66 +75,122 @@ async function readStdin(): Promise<string> {
 }
 
 function showHelp(): void {
-	const _p = getToolsPath();
 	process.stdout.write(
-		"tool — manage tool definitions and resolve LLM tool calls\n" +
+		"tool — resolve LLM tool calls and handle edit operations\n" +
 			"\n" +
 			"Usage:\n" +
 			"  tool                          Resolve tool calls from stdin (pipe mode)\n" +
-			"  tool path                     Print path to tools.json\n" +
-			"  tool list                     List all registered tools\n" +
+			"  tool list                     Print tool definitions as JSON\n" +
+			"  tool edit <id> <file> <edits> Run an edit tool call\n" +
 			"  tool help                     Show this help message\n" +
 			"\n" +
 			"Commands:\n" +
-			"  path                          Print the path to the tools.json file.\n" +
-			"                                Creates the file with defaults if it doesn't exist.\n" +
-			"  list                          Print each tool as: name\tdescription\tcmd\n" +
-			"  help                          Show this help message\n" +
 			"  (no command)                  Pipe mode: read an assistant message JSON from stdin,\n" +
-			"                                resolve tool calls against registered tools, and print\n" +
-			"                                one JSON line per call to stdout.\n" +
-			"\n" +
-			"Editing tools:\n" +
-			"  vi $(tool path)               Open tools.json in your editor to add/modify tools\n" +
+			"                                and print one JSON line per tool call to stdout.\n" +
+			"  list                          Print tool definitions as a JSON array to stdout.\n" +
+			"  edit <id> <file> <edits>      Apply edits to a file and report the result.\n" +
+			"                                <edits> is a JSON array of {old_text, new_text} objects.\n" +
 			"\n" +
 			"Examples:\n" +
-			"  tool path                     # print ~/.pmx/tools.json\n" +
-			"  tool list                     # show registered tools\n" +
 			"  echo '{...}' | tool           # resolve tool calls from assistant message JSON\n" +
-			"  llm $(ctx path) $(tool path) | ctx add-assistant | tool\n",
+			"  tool list | llm $(ctx path) | ctx add-assistant | tool\n" +
+			'  tool edit $id main.ts \'[{"old_text":"a","new_text":"b"}]\'\n',
+	);
+}
+
+function reportResult(id: string, name: string, text: string): void {
+	execSync(
+		`printf '%s' '${text.replace(/'/g, "'\"'\"'")}' | ctx add-result '${id}' '${name}'`,
+	);
+}
+
+function handleEdit(id: string, filePath: string, editsJson: string): void {
+	const edits: { old_text: string; new_text: string }[] = JSON.parse(editsJson);
+
+	if (!fs.existsSync(filePath)) {
+		reportResult(id, "edit", `error: file not found: ${filePath}`);
+		process.exit(1);
+	}
+
+	const fileContent = fs.readFileSync(filePath, "utf-8");
+
+	// Validate each old_text appears exactly once
+	for (const [i, edit] of edits.entries()) {
+		const { old_text } = edit;
+		let count = 0;
+		let pos = fileContent.indexOf(old_text);
+		while (pos !== -1) {
+			count++;
+			pos = fileContent.indexOf(old_text, pos + old_text.length);
+		}
+		if (count === 0) {
+			const preview = old_text.replace(/\n/g, " ").slice(0, 60);
+			reportResult(
+				id,
+				"edit",
+				`error: edit[${i}] old_text not found in ${filePath}: "${preview}"`,
+			);
+			process.exit(1);
+		} else if (count > 1) {
+			const preview = old_text.replace(/\n/g, " ").slice(0, 60);
+			reportResult(
+				id,
+				"edit",
+				`error: edit[${i}] old_text appears ${count} times in ${filePath} (must be unique): "${preview}"`,
+			);
+			process.exit(1);
+		}
+	}
+
+	// Apply edits in reverse order (by position) so offsets stay valid
+	const indexedEdits = edits
+		.map((edit) => ({
+			...edit,
+			pos: fileContent.indexOf(edit.old_text),
+		}))
+		.sort((a, b) => b.pos - a.pos);
+
+	let result = fileContent;
+	for (const { old_text, new_text } of indexedEdits) {
+		const idx = result.indexOf(old_text);
+		result =
+			result.slice(0, idx) + new_text + result.slice(idx + old_text.length);
+	}
+
+	fs.writeFileSync(filePath, result);
+	reportResult(
+		id,
+		"edit",
+		`edited ${filePath} (${edits.length} edits applied)`,
 	);
 }
 
 async function main() {
-	const [, , cmd] = process.argv;
+	const [, , cmd, ...args] = process.argv;
 
 	if (cmd === "--help" || cmd === "-h" || cmd === "help") {
 		showHelp();
 		return;
 	}
 
-	if (cmd === "path") {
-		const p = getToolsPath();
-		if (!fs.existsSync(p)) {
-			saveTools(DEFAULT_TOOLS);
-		}
-		process.stdout.write(`${p}\n`);
+	if (cmd === "list") {
+		process.stdout.write(`${JSON.stringify(TOOLS, null, 2)}\n`);
 		return;
 	}
 
-	if (cmd === "list") {
-		const tools = loadTools();
-		for (const t of tools) {
-			const name = t.name;
-			const desc = t.description;
-			const command = t.cmd ?? "(no cmd)";
-			process.stdout.write(`${name}\t${desc}\t${command}\n`);
+	if (cmd === "edit") {
+		const [id, filePath, editsJson] = args;
+		if (!id || !filePath || !editsJson) {
+			process.stderr.write(
+				"tool edit: usage: tool edit <id> <file> <edits_json>\n",
+			);
+			process.exit(1);
 		}
+		handleEdit(id, filePath, editsJson);
 		return;
 	}
 
 	// No subcommand — pipe mode: resolve tool calls from stdin
-	const tools = loadTools();
 	const raw = await readStdin();
 
 	if (!raw) {
@@ -184,21 +208,14 @@ async function main() {
 	}
 
 	for (const call of toolCalls) {
-		const tool = tools.find((t) => t.name === call.name);
+		const tool = TOOLS.find((t) => t.name === call.name);
 		if (!tool) {
 			process.stderr.write(`tool: unknown tool '${call.name}'\n`);
 			continue;
 		}
-		if (tool.cmd) {
-			const resolved = resolveCommand(tool.cmd, call.arguments);
-			process.stdout.write(
-				`${JSON.stringify({ id: call.id, name: call.name, cmd: resolved })}\n`,
-			);
-		} else {
-			process.stdout.write(
-				`${JSON.stringify({ id: call.id, name: call.name, ...call.arguments })}\n`,
-			);
-		}
+		process.stdout.write(
+			`${JSON.stringify({ id: call.id, name: call.name, args: call.arguments })}\n`,
+		);
 	}
 }
 

@@ -4,6 +4,12 @@ import type { Context, Message, Tool } from "@earendil-works/pi-ai";
 import { getEnvApiKey, stream } from "@earendil-works/pi-ai";
 import { resolveModel } from "./settings.ts";
 
+async function readStdin(): Promise<string> {
+	const chunks: Buffer[] = [];
+	for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
+	return Buffer.concat(chunks).toString("utf-8").trim();
+}
+
 function loadOAuthCredentials(provider: string): string | undefined {
 	try {
 		const authPath = `${process.env.HOME}/.pi/agent/auth.json`;
@@ -23,12 +29,12 @@ function showHelp(): void {
 		"llm — send a conversation to an LLM and stream the response\n" +
 			"\n" +
 			"Usage:\n" +
-			"  llm <messages.json> <tools.json>\n" +
+			"  <tools.json> | llm <messages.json>\n" +
 			"  llm help\n" +
 			"\n" +
 			"Arguments:\n" +
 			"  messages.json   Path to a JSON file containing conversation messages\n" +
-			"  tools.json      Path to a JSON file containing tool definitions\n" +
+			"  stdin           JSON array of tool definitions\n" +
 			"\n" +
 			"Output:\n" +
 			"  stderr  Streaming text output (assistant reply, thinking tags)\n" +
@@ -40,14 +46,13 @@ function showHelp(): void {
 			"  LLM_SYSTEM      Override the default system prompt\n" +
 			"\n" +
 			"Examples:\n" +
-			"  llm ~/.pmx/my-session/messages.json ~/.pmx/tools.json\n" +
-			"  llm $(ctx path) $(tool path)\n" +
-			"  LLM_SYSTEM='You are a helpful editor' llm $(ctx path) $(tool path)\n",
+			"  tool list | llm $(ctx path)\n" +
+			"  LLM_SYSTEM='You are a helpful editor' tool list | llm $(ctx path)\n",
 	);
 }
 
 async function main() {
-	const [, , arg1, arg2] = process.argv;
+	const [, , arg1, _arg2] = process.argv;
 
 	if (arg1 === "--help" || arg1 === "-h" || arg1 === "help") {
 		showHelp();
@@ -55,9 +60,8 @@ async function main() {
 	}
 
 	const messagesPath = arg1;
-	const toolsPath = arg2;
-	if (!messagesPath || !toolsPath) {
-		process.stderr.write("usage: llm <messages.json> <tools.json>\n");
+	if (!messagesPath) {
+		process.stderr.write("usage: <tools.json> | llm <messages.json>\n");
 		process.stderr.write("Run 'llm help' for more information.\n");
 		process.exit(1);
 	}
@@ -65,7 +69,10 @@ async function main() {
 	const messages: Message[] = JSON.parse(
 		fs.readFileSync(messagesPath, "utf-8"),
 	);
-	const tools: Tool[] = JSON.parse(fs.readFileSync(toolsPath, "utf-8"));
+
+	// Read tools from stdin
+	const toolsRaw = await readStdin();
+	const tools: Tool[] = JSON.parse(toolsRaw);
 
 	const { provider, model } = resolveModel();
 	const date = new Date().toISOString().split("T")[0];
