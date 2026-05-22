@@ -6,10 +6,9 @@ A set of small, composable tools that together form an LLM agent loop. Each tool
 
 ## Tools
 
-- **`llm`** - Makes an LLM API call. Streams text to stderr (human-readable), emits full assistant JSON to stdout (machine-readable).
+- **`llm`** - Sends a conversation to an LLM and streams the response. Reads tool definitions from stdin, messages from a JSON file. Streams text to stderr (human-readable), emits full assistant JSON to stdout (machine-readable).
 - **`ctx`** - Manages message history as a JSON file. Add user/assistant/tool-result messages, view, edit, or reset context.
-- **`tool`** - Parses assistant responses for tool calls and resolves them to shell commands.
-- **`pmx`** - The agent loop. Orchestrates `llm`, `ctx`, and `tool` in a loop until no more tool calls remain.
+- **`tool`** - Resolves LLM tool calls and handles edit operations. Reads assistant message JSON from stdin and prints one JSON line per tool call, or applies file edits directly.
 
 ## Core Loop
 
@@ -17,15 +16,13 @@ A set of small, composable tools that together form an LLM agent loop. Each tool
 ctx add user "fix the bug"
 
 while true; do
-  response=$(llm "$(ctx path)" "$(tool path)" | ctx add-assistant)
+  response=$(tool list | llm "$(ctx path)" | ctx add-assistant | sed -n '1p')
   calls=$(echo "$response" | tool) || break
 
   while IFS= read -r call; do
     id=$(echo "$call" | jq -r '.id')
     name=$(echo "$call" | jq -r '.name')
-    cmd=$(echo "$call" | jq -r '.cmd')
-    output=$(eval "$cmd")
-    echo "$output" | ctx add-result "$id" "$name"
+    args=$(echo "$call" | jq -r '.args')
   done <<< "$calls"
 done
 ```
@@ -56,17 +53,19 @@ ctx path                     # print location of messages.json
 ctx view                     # print human readable context
 ctx edit                     # edit conversation in $EDITOR (delete lines to remove messages)
 ctx reset                    # wipe context
-ctx stats                    # meta data
+ctx stats                    # model name, token usage, message count
+ctx last-text                # print the last assistant text response (no tool calls)
 ctx add user "msg"           # adds user message
-ctx add-assistant            # stdin messages from llm
-ctx add-result "$id" "$name" # stdin tool call result
-ctx last-text                # prints the final text from assistant
+ctx add assistant <json>     # adds assistant message (JSON)
+ctx add tool-result <id> <name> <text>  # adds tool result message
+ctx add-assistant            # stdin: append assistant message JSON
+ctx add-result "$id" "$name" # stdin: append tool result text
 
-tool path # print location of tools.json
-tool list # print human readable list of tools
-tool      # accepts stdin messages from llm api and resolves the tool commands based on template
+tool list                    # print tool definitions as JSON
+tool                         # pipe mode: stdin assistant message JSON -> stdout one JSON line per tool call
+tool edit <id> <file> <edits>  # apply edits to a file and report result
 
-llm "$(ctx path)" "$(tool path)"  # calls the provider and returns response
+<tools.json> | llm <messages.json>  # read tools from stdin, send messages to LLM
 ```
 
 Tool calls execute in a sibling zmx session (`$ZMX_SESSION.tools`) so you can `zmx attach <session>.tools` to watch with full ANSI output.
@@ -76,12 +75,22 @@ Tool calls execute in a sibling zmx session (`$ZMX_SESSION.tools`) so you can `z
 ```
 pmx "prompt"
   -> ctx add user
-  -> llm messages.json  (streams to terminal, JSON to stdout)
-  -> ctx add assistant
+  -> tool list | llm messages.json  (streams to terminal, JSON to stdout)
+  -> ctx add-assistant
   -> extract & execute tool calls via zmx run
   -> ctx add tool-result
   -> loop until no tool calls
 ```
+
+## Environment
+
+| Variable       | Description                        | Default                                         |
+| -------------- | ---------------------------------- | ----------------------------------------------- |
+| `ZMX_SESSION`  | Required. The zmx session to use.  | (none)                                          |
+| `LLM_PROVIDER` | LLM provider                       | from `~/.pi/agent/settings.json` or `anthropic` |
+| `LLM_MODEL`    | Model name                         | from settings or `claude-sonnet-4-5`            |
+| `LLM_SYSTEM`   | Override the default system prompt | (none)                                          |
+| `EDITOR`       | Editor for `ctx edit`              | `vi`                                            |
 
 ## Requirements
 
