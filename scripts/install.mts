@@ -11,6 +11,7 @@ await mkdir(dest, { recursive: true });
 const tools: [string, string][] = [
 	["src/ctx.ts", "ctx"],
 	["src/llm.ts", "llm"],
+	["src/model.ts", "model"],
 	["src/tool.ts", "tool"],
 	["pmx", "pmx"],
 ];

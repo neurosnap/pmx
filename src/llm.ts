@@ -29,12 +29,15 @@ function showHelp(): void {
 		"llm — send a conversation to an LLM and stream the response\n" +
 			"\n" +
 			"Usage:\n" +
-			"  <tools.json> | llm <messages.json>\n" +
+			"  <tools.json> | llm [options] <messages.json>\n" +
 			"  llm help\n" +
 			"\n" +
 			"Arguments:\n" +
 			"  messages.json   Path to a JSON file containing conversation messages\n" +
 			"  stdin           JSON array of tool definitions\n" +
+			"\n" +
+			"Options:\n" +
+			"  --model <provider/model>  Override model selection (e.g. anthropic/claude-sonnet-4-5)\n" +
 			"\n" +
 			"Output:\n" +
 			"  stderr  Streaming text output (assistant reply, thinking tags)\n" +
@@ -47,21 +50,39 @@ function showHelp(): void {
 			"\n" +
 			"Examples:\n" +
 			"  tool list | llm $(ctx path)\n" +
+			"  tool list | llm --model $(model resolve) $(ctx path)\n" +
 			"  LLM_SYSTEM='You are a helpful editor' tool list | llm $(ctx path)\n",
 	);
 }
 
 async function main() {
-	const [, , arg1, _arg2] = process.argv;
+	const args = process.argv.slice(2);
 
-	if (arg1 === "--help" || arg1 === "-h" || arg1 === "help") {
+	if (args[0] === "--help" || args[0] === "-h" || args[0] === "help") {
 		showHelp();
 		return;
 	}
 
-	const messagesPath = arg1;
+	// Parse --model flag
+	const modelIdx = args.indexOf("--model");
+	if (modelIdx !== -1) {
+		const spec = args[modelIdx + 1];
+		if (spec) {
+			const slashIdx = spec.indexOf("/");
+			if (slashIdx !== -1) {
+				process.env.LLM_PROVIDER = spec.slice(0, slashIdx);
+				process.env.LLM_MODEL = spec.slice(slashIdx + 1);
+			}
+		}
+		// Remove --model and its value from args
+		args.splice(modelIdx, 2);
+	}
+
+	const messagesPath = args[0];
 	if (!messagesPath) {
-		process.stderr.write("usage: <tools.json> | llm <messages.json>\n");
+		process.stderr.write(
+			"usage: <tools.json> | llm [options] <messages.json>\n",
+		);
 		process.stderr.write("Run 'llm help' for more information.\n");
 		process.exit(1);
 	}
